@@ -29,11 +29,16 @@
             throw Error('This environment doesn\'t support the ES6 Object.observe()'); 
         }
 
+        this._debug = false;
         this._history = [];
         this._whitelists = [];
         this._blacklists = [];
+        this._mergelists = [];
+        this._mergegroups = [];
         this._globalWhitelist = [];
         this._globalBlacklist = [];
+        this._globalMergelist = [];
+        this._globalMergegroups = [];
         this._pointer = -1;
         this._recChanges = this._recChanges.bind(this);
 
@@ -46,6 +51,13 @@
 
 
 
+    p._logDebug = function() {
+        this._debug && console.log.apply(console, arguments);
+    };
+
+    p._openDebugger = function() {
+        if (this._debug) debugger;
+    };
 
 
     p.observeTree = function (obj, route) {
@@ -179,6 +191,16 @@
         }
         else {
             this._reverseRecord(rec);
+
+            while (this._pointer >= 0) {
+                var mrec = this._history[this._pointer];
+                if (!this._isMergeable(rec, mrec)) {
+                    break;
+                }
+
+                this._pointer--;
+                this._reverseRecord(mrec);
+            }
         }
     };
 
@@ -207,6 +229,16 @@
         }
         else {
             this._reverseRecord(rec);
+
+            while (this._pointer < this._history.length - 1) {
+                var mrec = this._history[this._pointer + 1];
+                if (!this._isMergeable(rec, mrec)) {
+                    break;
+                }
+
+                ++this._pointer;
+                this._reverseRecord(mrec);
+            }
         }
     };
 
@@ -426,10 +458,118 @@
 
 
 
+//--------------------------------------------------------------------------------------------------
+//  Merge
+//--------------------------------------------------------------------------------------------------
+    /**
+     * Set attributes whose change list will be merged
+     * @param obj - attributes in this object
+     * @param list - attribute list
+     */
+    p.setMergelist = function (obj, list) {
+        this.removeMergelist(obj);
+        this._mergelists.push({obj: obj, list: list});
+    };
+
+    p.getMergelist = function (obj) {
+        for (var i = 0, l = this._mergelists.length; i < l; ++i) {
+            if (this._mergelists[i].obj === obj) {
+                return this._mergelists[i];
+            }
+        }
+    };
+
+    p.removeMergelist = function (obj) {
+        for (var i = 0; i < this._mergelists.length; ++i) {
+            if (this._mergelists[i].obj === obj) {
+                this._mergelists.splice(i--, 1);
+            }
+        }
+    };
+
+    /**
+     * Set merge groups, attributes in the same group are considered as the same attribute when merging.
+     * @param obj
+     * @param { [[string]] } groups - a list of group, each group is a list of attributes.
+     */
+    p.setMergegroups = function (obj, groups) {
+        this._mergegroups.push({obj: obj, groups: groups});
+    };
+
+    p.getMergegroups = function (obj) {
+        for (var i = 0; i < this._mergegroups.length; ++i) {
+            if (this._mergegroups[i].obj === obj) {
+                return this._mergegroups[i];
+            }
+        }
+    };
+
+    p.removeMergegroups = function (obj) {
+        for (var i = 0; i < this._mergegroups.length; ++i) {
+            if (this._mergegroups[i].obj === obj) {
+                this._mergegroups.splice(i--, 1);
+            }
+        }
+    };
+
+    p.addToGlobalMergegroups = function (/* groups */) {
+        var args = arguments;
+
+        for(var i = 0; i < args.length; ++i) {
+            this._globalMergegroups.push(args[i]);
+        }
+    };
+
+    p.addToGlobalMergelist = function (/* attributes */) {
+        var args = arguments;
+
+        for (var i = 0, l = args.length; i < l; ++i) {
+            this._globalMergelist.push(args[i]);
+        }
+    };
+
+    p.removeFromGlobalMergelist = function (/* attributes */) {
+        var args = arguments;
+
+        this._globalMergelist = this._globalMergelist.filter(function (paramName) {
+            return Array.prototype.indexOf.call(args, paramName) === -1;
+        });
+    };
 
 
+    p._isMergeable = function (rec0, rec1) {
+        if (!rec0.name || rec0.object !== rec1.object) {
+            return false;
+        }
 
+        if (this._globalMergelist.indexOf(rec0.name) === -1) {
+            var ml = this.getMergelist(rec0.object);
+            if (!ml || ml.list.indexOf(rec0.name) === -1) {
+                return false;
+            }
+        }
 
+        if (rec0.name === rec1.name) {
+            return true;
+        }
+
+        for (var i = 0; i < this._globalMergegroups.length; ++i) {
+            var group = this._globalMergegroups[i];
+            if (group.indexOf(rec0.name) !== -1 && group.indexOf(rec1.name) !== -1) {
+                return true;
+            }
+        }
+
+        var mgs = this.getMergegroups(rec0.object);
+        for (var i = 0; mgs && i < mgs.groups.length; ++i) {
+            var group = mgs.groups[i];
+            if (group.indexOf(rec0.name) !== -1 && group.indexOf(rec1.name) !== -1) {
+                return true;
+            }
+        }
+
+        return false;
+    };
 
 //--------------------------------------------------------------------------------------------------
 //  Polymer plugin

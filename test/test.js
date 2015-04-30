@@ -259,6 +259,91 @@ suite('Test LazyJsonUndoRedo', function () {
         });
     });
 
+    suite('about merge', function() {
+
+        test('test0', function() {
+            var o = {x: 0, y: 0, z:0};
+            var ljur = new LazyJsonUndoRedo(o);
+
+            ljur.setMergelist(o, ['x', 'y', 'a', 'b']);
+            ljur.setMergegroups(o, [['a', 'b'], ['x', 'a']]);
+            ljur.addToGlobalMergelist('z');
+            o.x = 1;
+            ljur.rec();
+            o.x = 2;
+            ljur.rec();
+            o.x = 3;
+            assert.deepEqual(o, {x:3, y:0, z:0});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+            ljur.redo();
+            assert.deepEqual(o, {x:3, y:0, z:0});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+            o.y = 1;
+            ljur.rec();
+            o.y = 2;
+            ljur.rec();
+            o.y = 3;
+            assert.deepEqual(o, {x:0, y:3, z:0});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+            ljur.redo();
+            assert.deepEqual(o, {x:0, y:3, z:0});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+            o.z = 1;
+            ljur.rec();
+            o.z = 2;
+            ljur.rec();
+            o.z = 3;
+            assert.deepEqual(o, {x:0, y:0, z:3});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+            ljur.redo();
+            assert.deepEqual(o, {x:0, y:0, z:3});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+
+
+            o.z = 0;
+            ljur.rec();
+            assert.deepEqual(o, {x:0, y:0, z:0});
+            o.x = 1;
+            ljur.rec();
+            o.y = 1;
+            ljur.rec();
+            o.y = 2;
+            ljur.undo();
+            assert.deepEqual(o, {x:1, y:0, z:0});
+
+            o.x = 0;
+            o.y = 0;
+            o.z = 0;
+            o.a = 0;
+            o.b = 0;
+            ljur.rec();
+            assert.deepEqual(o, {x:0, y:0, z:0, a:0, b:0});
+
+            ljur._debug = true;
+            o.y = 10;
+            ljur.rec();
+            o.x = 1;
+            ljur.rec();
+            o.x = 2;
+            ljur.rec();
+            o.a = 1;
+            ljur.rec();
+            o.a = 2;
+            ljur.rec();
+            assert.deepEqual(o, {x:2, y:10, z:0, a:2, b:0});
+            ljur.undo();
+            assert.deepEqual(o, {x:0, y:10, z:0, a:0, b:0});
+
+        });
+
+    });
+
     suite('others', function () {
 
         test('listen more object', function () {
