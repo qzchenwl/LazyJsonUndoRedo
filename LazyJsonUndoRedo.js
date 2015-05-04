@@ -33,11 +33,13 @@
         this._history = [];
         this._whitelists = [];
         this._blacklists = [];
-        this._mergelists = [];
+        this._mergeWhitelists = [];
+        this._mergeBlacklists = [];
         this._mergegroups = [];
         this._globalWhitelist = [];
         this._globalBlacklist = [];
-        this._globalMergelist = [];
+        this._globalMergeWhitelist = [];
+        this._globalMergeBlacklist = [];
         this._globalMergegroups = [];
         this._pointer = -1;
         this._recChanges = this._recChanges.bind(this);
@@ -466,23 +468,49 @@
      * @param obj - attributes in this object
      * @param list - attribute list
      */
-    p.setMergelist = function (obj, list) {
-        this.removeMergelist(obj);
-        this._mergelists.push({obj: obj, list: list});
+    p.setMergeWhitelist = function (obj, list) {
+        this.removeMergeWhitelist(obj);
+        this._mergeWhitelists.push({obj: obj, list: list});
     };
 
-    p.getMergelist = function (obj) {
-        for (var i = 0, l = this._mergelists.length; i < l; ++i) {
-            if (this._mergelists[i].obj === obj) {
-                return this._mergelists[i];
+    p.getMergeWhitelist = function (obj) {
+        for (var i = 0, l = this._mergeWhitelists.length; i < l; ++i) {
+            if (this._mergeWhitelists[i].obj === obj) {
+                return this._mergeWhitelists[i];
             }
         }
     };
 
-    p.removeMergelist = function (obj) {
-        for (var i = 0; i < this._mergelists.length; ++i) {
-            if (this._mergelists[i].obj === obj) {
-                this._mergelists.splice(i--, 1);
+    p.removeMergeWhitelist = function (obj) {
+        for (var i = 0; i < this._mergeWhitelists.length; ++i) {
+            if (this._mergeWhitelists[i].obj === obj) {
+                this._mergeWhitelists.splice(i--, 1);
+            }
+        }
+    };
+
+    /**
+     * Set attributes whose change list will be merged
+     * @param obj - attributes in this object
+     * @param list - attribute list
+     */
+    p.setMergeBlacklist = function (obj, list) {
+        this.removeMergeBlacklist(obj);
+        this._mergeBlacklists.push({obj: obj, list: list});
+    };
+
+    p.getMergeBlacklist = function (obj) {
+        for (var i = 0, l = this._mergeBlacklists.length; i < l; ++i) {
+            if (this._mergeBlacklists[i].obj === obj) {
+                return this._mergeBlacklists[i];
+            }
+        }
+    };
+
+    p.removeMergeBlacklist = function (obj) {
+        for (var i = 0; i < this._mergeBlacklists.length; ++i) {
+            if (this._mergeBlacklists[i].obj === obj) {
+                this._mergeBlacklists.splice(i--, 1);
             }
         }
     };
@@ -520,18 +548,34 @@
         }
     };
 
-    p.addToGlobalMergelist = function (/* attributes */) {
+    p.addToGlobalMergeWhitelist = function (/* attributes */) {
         var args = arguments;
 
         for (var i = 0, l = args.length; i < l; ++i) {
-            this._globalMergelist.push(args[i]);
+            this._globalMergeWhitelist.push(args[i]);
         }
     };
 
-    p.removeFromGlobalMergelist = function (/* attributes */) {
+    p.removeFromGlobalMergeWhitelist = function (/* attributes */) {
         var args = arguments;
 
-        this._globalMergelist = this._globalMergelist.filter(function (paramName) {
+        this._globalMergeWhitelist = this._globalMergeWhitelist.filter(function (paramName) {
+            return Array.prototype.indexOf.call(args, paramName) === -1;
+        });
+    };
+
+    p.addToGlobalMergeBlacklist = function (/* attributes */) {
+        var args = arguments;
+
+        for (var i = 0, l = args.length; i < l; ++i) {
+            this._globalMergeBlacklist.push(args[i]);
+        }
+    };
+
+    p.removeFromGlobalMergeBlacklist = function (/* attributes */) {
+        var args = arguments;
+
+        this._globalMergeBlacklist = this._globalMergeBlacklist.filter(function (paramName) {
             return Array.prototype.indexOf.call(args, paramName) === -1;
         });
     };
@@ -542,19 +586,36 @@
             return false;
         }
 
-        if (this._globalMergelist.indexOf(rec0.name) === -1) {
-            var ml = this.getMergelist(rec0.object);
-            if (!ml || ml.list.indexOf(rec0.name) === -1) {
-                return false;
+        function passthrough(rec0) {
+            var lwl = this.getMergeWhitelist(rec0.object);
+            var lbl = this.getMergeBlacklist(rec0.object);
+            var gwl = this._globalMergeWhitelist;
+            var gbl = this._globalMergeBlacklist;
+
+            // Blacklist mode, if neither blacklist contains rec0, return true.
+            if (gbl.length !== 0 || lbl) {
+                if (gbl.indexOf(rec0.name) === -1 && (!lbl || lbl.list.indexOf(rec0.name) === -1)) {
+                    return true;
+                }
             }
+
+            // If rec0 in global whitelist or in local whitelist, return true.
+            if (gwl.indexOf(rec0.name) !== -1 || (lwl && lwl.list.indexOf(rec0.name) !== -1)) {
+                return true;
+            }
+        }
+
+        if (!passthrough.call(this, rec0)) {
+            return false;
         }
 
         if (rec0.name === rec1.name) {
             return true;
         }
 
-        for (var i = 0; i < this._globalMergegroups.length; ++i) {
+        for (var i = 0; i < this._globalMergegroups; ++i) {
             var group = this._globalMergegroups[i];
+            // If rec0.name and rec1.name in the same group
             if (group.indexOf(rec0.name) !== -1 && group.indexOf(rec1.name) !== -1) {
                 return true;
             }
@@ -563,6 +624,7 @@
         var mgs = this.getMergegroups(rec0.object);
         for (var i = 0; mgs && i < mgs.groups.length; ++i) {
             var group = mgs.groups[i];
+            // If rec0.name and rec1.name in the same group
             if (group.indexOf(rec0.name) !== -1 && group.indexOf(rec1.name) !== -1) {
                 return true;
             }
