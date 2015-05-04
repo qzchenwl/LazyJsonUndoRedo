@@ -266,7 +266,8 @@ suite('Test LazyJsonUndoRedo', function () {
             var ljur = new LazyJsonUndoRedo(o);
             ljur._debug = true;
             ljur.setMergeWhitelist(o, ['x', 'y', 'a', 'b']);
-            ljur.setMergegroups(o, [['a', 'b'], ['x', 'a']]);
+            ljur.setMergegroups(o, [['a', 'b']]);
+            ljur.addToGlobalMergegroups(['x', 'a']);
             ljur.addToGlobalMergeWhitelist('z');
             o.x = 1;
             ljur.rec();

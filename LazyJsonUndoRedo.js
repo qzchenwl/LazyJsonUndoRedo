@@ -613,7 +613,7 @@
             return true;
         }
 
-        for (var i = 0; i < this._globalMergegroups; ++i) {
+        for (var i = 0; i < this._globalMergegroups.length; ++i) {
             var group = this._globalMergegroups[i];
             // If rec0.name and rec1.name in the same group
             if (group.indexOf(rec0.name) !== -1 && group.indexOf(rec1.name) !== -1) {
